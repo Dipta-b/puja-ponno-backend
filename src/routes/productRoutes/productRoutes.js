@@ -75,14 +75,39 @@ productRoutes.post("/", verifyToken, verifyAdmin, async (req, res) => {
     try {
         const collection = await getCollection("products");
 
+        const {
+            name,
+            category,
+            price,
+            thumbnail
+        } = req.body;
+
+        // 🔴 VALIDATION (IMPORTANT)
+        if (!name || !category || !price || !thumbnail) {
+            return res.status(400).json({
+                message: "Missing required fields (name, category, price, thumbnail)"
+            });
+        }
+
+        // 🔥 Clean items
+        const itemsIncluded = Array.isArray(req.body.itemsIncluded)
+            ? req.body.itemsIncluded.filter(
+                i => i.name?.trim() && i.quantity?.trim()
+            )
+            : [];
+
         const product = {
             ...req.body,
+            itemsIncluded,
             createdAt: new Date(),
         };
 
         const result = await collection.insertOne(product);
+
         res.status(201).json(result);
+
     } catch (err) {
+        console.error(err);
         res.status(500).json({ message: "Server error" });
     }
 });
@@ -91,7 +116,7 @@ productRoutes.post("/", verifyToken, verifyAdmin, async (req, res) => {
 productRoutes.put("/:id", verifyToken, verifyAdmin, async (req, res) => {
     try {
         const collection = await getCollection("products");
-        
+
         const updateData = { ...req.body };
         delete updateData._id;
 
