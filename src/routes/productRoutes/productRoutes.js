@@ -89,14 +89,22 @@ productRoutes.post("/", verifyToken, verifyAdmin, async (req, res) => {
 
 // UPDATE
 productRoutes.put("/:id", verifyToken, verifyAdmin, async (req, res) => {
-    const collection = await getCollection("products");
+    try {
+        const collection = await getCollection("products");
+        
+        const updateData = { ...req.body };
+        delete updateData._id;
 
-    const result = await collection.updateOne(
-        { _id: new ObjectId(req.params.id) },
-        { $set: req.body }
-    );
+        const result = await collection.updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: updateData }
+        );
 
-    res.json(result);
+        res.json(result);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
 });
 
 // DELETE

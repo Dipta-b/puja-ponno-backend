@@ -9,6 +9,7 @@ const { getCollection } = require("../../config/db");
 const verifyToken = require("../../middleware/verifyToken");
 const verifyAdmin = require("../../middleware/verifyAdmin");
 
+
 // =======================
 // REGISTER
 // =======================
@@ -26,27 +27,39 @@ userRoutes.post("/register", async (req, res) => {
             });
         }
 
+        const userCount = await users.countDocuments();
+        const isFirstUser = userCount === 0;
+
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        const isRequestingAdmin = role === "admin";
 
         const newUser = {
             name,
             email,
             password: hashedPassword,
-            role: role || "user",
+
+            // ROLE SYSTEM
+            role: isFirstUser ? "admin" : "user",
+
             requestedRole: role || "user",
-            status: "pending",
+
+            // IMPORTANT:
+            // ❌ status is NOT used for login restriction anymore
+            status: isFirstUser ? "approved" : "pending",
+
             image: image || "",
             createdAt: new Date(),
         };
 
         const result = await users.insertOne(newUser);
 
-        // ⚠️ Never send password back
         res.status(201).json({
             id: result.insertedId,
             name: newUser.name,
             email: newUser.email,
             role: newUser.role,
+            status: newUser.status,
             image: newUser.image
         });
 
@@ -58,6 +71,7 @@ userRoutes.post("/register", async (req, res) => {
     }
 });
 
+
 // =======================
 // LOGIN
 // =======================
@@ -68,15 +82,21 @@ userRoutes.post("/login", async (req, res) => {
         const users = await getCollection("users");
 
         const user = await users.findOne({ email });
+
         if (!user)
             return res.status(404).json({ message: "User not found" });
 
         const isMatch = await bcrypt.compare(password, user.password);
+
         if (!isMatch)
             return res.status(401).json({ message: "Invalid password" });
 
         const token = jwt.sign(
-            { id: user._id, role: user.role },
+            {
+                id: user._id,
+                role: user.role,
+                status: user.status   // optional info only
+            },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
@@ -96,43 +116,17 @@ userRoutes.post("/login", async (req, res) => {
             status: user.status,
             image: user.image,
         });
+
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Server error" });
     }
 });
 
+
 // =======================
-// GET CURRENT USER
+// CURRENT USER
 // =======================
-userRoutes.get("/me", async (req, res) => {
-    try {
-        const token = req.cookies.token;
-
-        if (!token)
-            return res.status(401).json({ message: "Not authenticated" });
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        const users = await getCollection("users");
-
-        const user = await users.findOne(
-            { _id: new ObjectId(decoded.id) },
-            { projection: { password: 0 } }
-        );
-
-        if (!user)
-            return res.status(404).json({ message: "User not found" });
-
-        res.json(user);
-    } catch (err) {
-        console.error(err);
-        res.status(401).json({ message: "Invalid token" });
-    }
-});
-
-
-// ---------------- ME (CURRENT USER) ----------------
 userRoutes.get("/me", verifyToken, async (req, res) => {
     try {
         const users = await getCollection("users");
@@ -154,6 +148,7 @@ userRoutes.get("/me", verifyToken, async (req, res) => {
     }
 });
 
+
 // =======================
 // LOGOUT
 // =======================
@@ -167,24 +162,57 @@ userRoutes.post("/logout", (req, res) => {
     res.json({ message: "Logged out successfully" });
 });
 
+
 // =======================
 // GET ALL USERS (ADMIN)
 // =======================
-userRoutes.get("/", verifyToken, verifyAdmin, async (req, res) => {
+userRoutes.get("/users", verifyToken, verifyAdmin, async (req, res) => {
     try {
         const users = await getCollection("users");
-        
-        // Exclude passwords
-        const allUsers = await users.find({}, { projection: { password: 0 } }).toArray();
+
+        const allUsers = await users.find(
+            {},
+            { projection: { password: 0 } }
+        ).toArray();
+
         res.json(allUsers);
+
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Server error" });
     }
 });
 
+
 // =======================
-// UPDATE USER ROLE (ADMIN)
+// FORCE ADMIN
+// =======================
+userRoutes.get("/force-admin/:email", async (req, res) => {
+    try {
+        const users = await getCollection("users");
+
+        const result = await users.updateOne(
+            { email: req.params.email },
+            { $set: { role: "admin", status: "approved" } }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "User not found with this email" });
+        }
+
+        res.json({
+            message: `Successfully promoted ${req.params.email} to Admin!`
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+
+// =======================
+// UPDATE ROLE (ADMIN)
 // =======================
 userRoutes.put("/:id/role", verifyToken, verifyAdmin, async (req, res) => {
     try {
@@ -201,6 +229,7 @@ userRoutes.put("/:id/role", verifyToken, verifyAdmin, async (req, res) => {
         }
 
         res.json({ message: "User updated successfully" });
+
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Server error" });
