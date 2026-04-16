@@ -7,6 +7,7 @@ const { ObjectId } = require("mongodb");
 
 const { getCollection } = require("../../config/db");
 const verifyToken = require("../../middleware/verifyToken");
+const verifyAdmin = require("../../middleware/verifyAdmin");
 
 // =======================
 // REGISTER
@@ -164,6 +165,46 @@ userRoutes.post("/logout", (req, res) => {
     });
 
     res.json({ message: "Logged out successfully" });
+});
+
+// =======================
+// GET ALL USERS (ADMIN)
+// =======================
+userRoutes.get("/", verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const users = await getCollection("users");
+        
+        // Exclude passwords
+        const allUsers = await users.find({}, { projection: { password: 0 } }).toArray();
+        res.json(allUsers);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// =======================
+// UPDATE USER ROLE (ADMIN)
+// =======================
+userRoutes.put("/:id/role", verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const { role, status } = req.body;
+        const users = await getCollection("users");
+
+        const result = await users.updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { role, status } }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.json({ message: "User updated successfully" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
 });
 
 module.exports = userRoutes;

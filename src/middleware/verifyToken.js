@@ -5,17 +5,24 @@ const verifyToken = (req, res, next) => {
 
     if (!token) {
         return res.status(401).json({
-            message: "Unauthorized: No token provided"
+            message: "Unauthorized: No token provided",
         });
     }
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
+
+        // safer structure
+        req.user = {
+            id: decoded.id,
+            email: decoded.email,
+            role: decoded.role,
+        };
+
         next();
     } catch (error) {
         return res.status(401).json({
-            message: "Unauthorized: Invalid token"
+            message: "Unauthorized: Invalid token",
         });
     }
 };

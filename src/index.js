@@ -7,6 +7,8 @@ const cookieParser = require("cookie-parser");
 const userRoutes = require("./routes/userRoutes/userRoutes");
 
 const { connectDB } = require("./config/db");
+const productRoutes = require("./routes/productRoutes/productRoutes");
+const categoryRoutes = require("./routes/categoryRoutes/categoryRoutes");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -21,6 +23,8 @@ app.use(
 app.use(express.json());
 
 app.use("/api/auth", userRoutes);
+app.use("/products", productRoutes);
+app.use("/categories", categoryRoutes);
 
 app.get("/", (req, res) => {
     res.send("Puja Ponno Backend is Running!");
