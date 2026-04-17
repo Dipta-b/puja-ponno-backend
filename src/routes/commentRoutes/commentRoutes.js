@@ -12,11 +12,22 @@ const { getCollection } = require("../../config/db");
 commentRoutes.get("/", async (req, res) => {
     try {
         const collection = await getCollection("comments");
+        const usersCollection = await getCollection("users");
 
         const comments = await collection
             .find()
             .sort({ createdAt: -1 })
             .toArray();
+
+        // Attach actual user names
+        for (let c of comments) {
+            if (c.userId) {
+                const u = await usersCollection.findOne({ _id: new ObjectId(c.userId) });
+                if (u && u.name) {
+                    c.name = u.name;
+                }
+            }
+        }
 
         res.json(comments);
     } catch (err) {
@@ -31,11 +42,22 @@ commentRoutes.get("/", async (req, res) => {
 commentRoutes.get("/product/:productId", async (req, res) => {
     try {
         const collection = await getCollection("comments");
+        const usersCollection = await getCollection("users");
 
         const comments = await collection
             .find({ productId: req.params.productId })
             .sort({ createdAt: -1 })
             .toArray();
+
+        // Attach actual user names
+        for (let c of comments) {
+            if (c.userId) {
+                const u = await usersCollection.findOne({ _id: new ObjectId(c.userId) });
+                if (u && u.name) {
+                    c.name = u.name;
+                }
+            }
+        }
 
         res.json(comments);
     } catch (err) {
@@ -65,6 +87,10 @@ commentRoutes.post("/", verifyToken, async (req, res) => {
             });
         }
 
+        const usersCollection = await getCollection("users");
+        const userRecord = await usersCollection.findOne({ _id: new ObjectId(req.user.id) });
+        const actualName = userRecord ? userRecord.name : (req.user.name || "User");
+
         const comment = {
             productId,
 
@@ -72,7 +98,7 @@ commentRoutes.post("/", verifyToken, async (req, res) => {
             email: req.user.email,
             role: req.user.role,
 
-            name: req.user.name || "User",
+            name: actualName,
             image: image || "",
 
             rating: Number(rating),
