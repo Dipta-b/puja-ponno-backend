@@ -79,26 +79,46 @@ productRoutes.post("/", verifyToken, verifyAdmin, async (req, res) => {
             name,
             category,
             price,
-            thumbnail
+            thumbnail,
+
+            // ✅ PACKAGE SUPPORT (NEW - OPTIONAL)
+            duration,     // number of days (10/20/30)
+            discount,     // discount amount
+            items         // package items list
         } = req.body;
 
-        // 🔴 VALIDATION (IMPORTANT)
+        // 🔴 VALIDATION (EXISTING)
         if (!name || !category || !price || !thumbnail) {
             return res.status(400).json({
                 message: "Missing required fields (name, category, price, thumbnail)"
             });
         }
 
-        // 🔥 Clean items
+        // 🔥 Existing itemsIncluded (OLD SYSTEM)
         const itemsIncluded = Array.isArray(req.body.itemsIncluded)
             ? req.body.itemsIncluded.filter(
                 i => i.name?.trim() && i.quantity?.trim()
             )
             : [];
 
+        // 🔥 NEW: Clean package items
+        const packageItems = Array.isArray(items)
+            ? items.filter(
+                i => i.name?.trim() && i.quantity?.trim()
+            )
+            : [];
+
         const product = {
             ...req.body,
+
+            // ✅ KEEP OLD SYSTEM
             itemsIncluded,
+
+            // ✅ NEW PACKAGE FIELDS
+            duration: duration || null,   // days
+            discount: discount || 0,      // default 0
+            items: packageItems,          // package items
+
             createdAt: new Date(),
         };
 
@@ -112,11 +132,17 @@ productRoutes.post("/", verifyToken, verifyAdmin, async (req, res) => {
     }
 });
 
-// UPDATE
+// UPDATE (ADMIN)
 productRoutes.put("/:id", verifyToken, verifyAdmin, async (req, res) => {
     try {
         const collection = await getCollection("products");
 
+        // ✅ This allows updating EVERYTHING:
+        // - duration (days)
+        // - price
+        // - discount
+        // - items
+        // - any new future field
         const updateData = { ...req.body };
         delete updateData._id;
 
@@ -132,7 +158,7 @@ productRoutes.put("/:id", verifyToken, verifyAdmin, async (req, res) => {
     }
 });
 
-// DELETE
+// DELETE (ADMIN)
 productRoutes.delete("/:id", verifyToken, verifyAdmin, async (req, res) => {
     const collection = await getCollection("products");
 
