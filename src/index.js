@@ -9,6 +9,7 @@ const userRoutes = require("./routes/userRoutes/userRoutes");
 const { connectDB } = require("./config/db");
 const productRoutes = require("./routes/productRoutes/productRoutes");
 const categoryRoutes = require("./routes/categoryRoutes/categoryRoutes");
+const commentRoutes = require("./routes/commentRoutes/commentRoutes");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -25,6 +26,7 @@ app.use(express.json());
 app.use("/api/auth", userRoutes);
 app.use("/products", productRoutes);
 app.use("/categories", categoryRoutes);
+app.use("/comments", commentRoutes);
 
 app.get("/", (req, res) => {
     res.send("Puja Ponno Backend is Running!");
