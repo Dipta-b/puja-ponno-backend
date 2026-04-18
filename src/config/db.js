@@ -22,8 +22,14 @@ async function connectDB() {
         await client.connect();
 
         db = client.db("pujaPonnoDB");
-
         console.log("✅ Connected to pujaPonnoDB");
+
+        // ⚡ ENSURE INDEXES (FOR PRODUCTION)
+        const orders = db.collection("orders");
+        await orders.createIndex({ tran_id: 1 }, { unique: true });
+        await orders.createIndex({ userId: 1 });
+        await orders.createIndex({ "paymentStatus": 1 });
+        console.log("⚡ Database Indexes Ensured");
     }
 
     return db;

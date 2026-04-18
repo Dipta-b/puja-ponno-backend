@@ -20,12 +20,13 @@ categoryRoutes.get("/", async (req, res) => {
 // CREATE category (admin only)
 categoryRoutes.post("/", verifyToken, verifyAdmin, async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, nameBn } = req.body;
 
         const collection = await getCollection("categories");
 
         const category = {
             name,
+            nameBn,
             slug: name.toLowerCase().replace(/\s+/g, "-"),
             createdAt: new Date(),
         };

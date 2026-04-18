@@ -15,6 +15,7 @@ const verifyToken = (req, res, next) => {
         // safer structure
         req.user = {
             id: decoded.id,
+            name: decoded.name,
             email: decoded.email,
             role: decoded.role,
         };
