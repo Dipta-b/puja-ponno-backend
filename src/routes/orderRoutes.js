@@ -79,4 +79,21 @@ router.get("/user/:userId", verifyToken, verifyAdmin, async (req, res) => {
     }
 });
 
+/**
+ * 🛡️ GET ORDER BY TRANSACTION ID (ADMIN ONLY)
+ */
+router.get("/tran/:tranId", verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const { tranId } = req.params;
+        const orders = await getCollection("orders");
+        const order = await orders.findOne({ "payment.transactionId": tranId });
+        
+        if (!order) return res.status(404).json({ message: "Order not found" });
+        res.json(order);
+    } catch (err) {
+        res.status(500).json({ message: "Failed to fetch order" });
+    }
+});
+
+
 module.exports = router;

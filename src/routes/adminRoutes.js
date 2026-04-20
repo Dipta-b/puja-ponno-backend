@@ -110,15 +110,41 @@ router.get("/stats/top-products", verifyToken, verifyAdmin, async (req, res) => 
 router.get("/logs/payments", verifyToken, verifyAdmin, async (req, res) => {
     try {
         const logs = await getCollection("payment_logs");
-        const allLogs = await logs.find({})
-            .sort({ timestamp: -1 })
-            .limit(100)
-            .toArray();
+        
+        // 🔄 PRODUCTION-LEVEL AGGREGATION: Join logs with orders to ensure user data is ALWAYS available
+        const allLogs = await logs.aggregate([
+            { $sort: { timestamp: -1 } },
+            { $limit: 100 },
+            {
+                $lookup: {
+                    from: "orders",
+                    localField: "tran_id",
+                    foreignField: "payment.transactionId", // 🛡️ Using the most reliable field
+                    as: "orderData"
+                }
+            },
+            {
+                $addFields: {
+                    // Extract customer info from the joined order if available
+                    customer: { $arrayElemAt: ["$orderData.customer", 0] },
+                    // Inject helper for frontend
+                    hasOrder: { $gt: [{ $size: "$orderData" }, 0] }
+                }
+            },
+            {
+                $project: {
+                    orderData: 0 // Clean up join data
+                }
+            }
+        ]).toArray();
+
         
         res.json(allLogs);
     } catch (err) {
+        console.error("LOGS FETCH ERROR:", err);
         res.status(500).json({ message: "Failed to fetch logs" });
     }
 });
+
 
 module.exports = router;
