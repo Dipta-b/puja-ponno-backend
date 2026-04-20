@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const { getCollection } = require("../config/db");
+const { ObjectId } = require("mongodb");
 const verifyToken = require("../middleware/verifyToken");
+
 const verifyAdmin = require("../middleware/verifyAdmin");
 
 /**
@@ -143,6 +145,35 @@ router.get("/logs/payments", verifyToken, verifyAdmin, async (req, res) => {
     } catch (err) {
         console.error("LOGS FETCH ERROR:", err);
         res.status(500).json({ message: "Failed to fetch logs" });
+    }
+});
+
+/**
+ * 🛡️ DELETE ALL PAYMENT LOGS (ADMIN ONLY)
+ */
+router.delete("/logs/payments/all", verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const logs = await getCollection("payment_logs");
+        await logs.deleteMany({});
+        res.json({ success: true, message: "All logs cleared successfully" });
+    } catch (err) {
+        res.status(500).json({ message: "Failed to clear logs" });
+    }
+});
+
+/**
+ * 🛡️ DELETE SPECIFIC LOG (ADMIN ONLY)
+ */
+router.delete("/logs/payments/:id", verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const logs = await getCollection("payment_logs");
+        const result = await logs.deleteOne({ _id: new ObjectId(id) });
+        
+        if (result.deletedCount === 0) return res.status(404).json({ message: "Log not found" });
+        res.json({ success: true, message: "Log deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ message: "Failed to delete log" });
     }
 });
 
