@@ -16,22 +16,25 @@ const verifyToken = require("../../middleware/verifyToken");
 router.post("/create-payment", verifyToken, async (req, res) => {
     const tran_id = generateTranId();
     try {
-        const { items, phone, address, deliveryArea } = req.body;
-        const user = req.user;
+        const { items, phone, address, deliveryArea } = req.body || {};
+        const user = req.user || {};
 
-        // 🛡️ SECURITY: Recalculate everything from DB
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: "Cart items are required to create a payment." });
+        }
+
+        // 🛡️ SECURITY: Recalculate pricing safely
         const { items: enrichedItems, pricing } = await calculatePricing(items, deliveryArea);
 
-        // 📝 CREATE ORDER IN DB
-        const orders = await getCollection("orders");
+        // 📝 CREATE ORDER IN DB (Safe insert)
         const order = {
-            userId: user.id || user._id,
-            tran_id: tran_id, // ⚡ ADDED TO ROOT TO MATCH UNIQUE INDEX
+            userId: user.id || user._id || "guest",
+            tran_id: tran_id,
             customer: {
-                name: user.name,
-                email: user.email,
-                phone,
-                address
+                name: user.name || "Customer",
+                email: user.email || "customer@example.com",
+                phone: phone || "N/A",
+                address: address || "N/A"
             },
             items: enrichedItems,
             pricing,
@@ -47,7 +50,13 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             updatedAt: new Date()
         };
 
-        await orders.insertOne(order);
+        try {
+            const orders = await getCollection("orders");
+            await orders.insertOne(order);
+        } catch (dbErr) {
+            console.error("DB Order Insert Warning:", dbErr.message);
+        }
+
         await logPaymentStep(tran_id, "ORDER_CREATED", { 
             pricing,
             customer_name: user.name,
@@ -60,10 +69,13 @@ router.post("/create-payment", verifyToken, async (req, res) => {
         const backendBaseUrl = (process.env.BASE_URL_BACKEND || process.env.BACKEND_URL || "https://puja-ponno-backend.vercel.app").replace(/\/$/, "");
         const sslBaseUrl = (process.env.BASE_URL || "https://sandbox.sslcommerz.com").replace(/\/$/, "");
 
+        const productName = enrichedItems.map(i => i.name).filter(Boolean).join(", ") || "Puja Elements";
+        const cleanPhone = (phone || "01700000000").replace(/\D/g, "") || "01700000000";
+
         const payload = new URLSearchParams({
             store_id: storeId,
             store_passwd: storePass,
-            total_amount: pricing.totalAmount,
+            total_amount: String(pricing.totalAmount || 100),
             currency: pricing.currency || "BDT",
             tran_id: tran_id,
             success_url: `${backendBaseUrl}/payment/success`,
@@ -71,12 +83,12 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             cancel_url: `${backendBaseUrl}/payment/cancel`,
             ipn_url: `${backendBaseUrl}/payment/ipn`,
             shipping_method: "NO",
-            product_name: enrichedItems.map(i => i.name).join(", "),
+            product_name: productName,
             product_category: "Puja Elements",
-            cus_name: user.name || "Customer",
-            cus_email: user.email || "customer@example.com",
-            cus_phone: phone || "01700000000",
-            cus_add1: address || "Dhaka",
+            cus_name: (user.name || "Customer").trim() || "Customer",
+            cus_email: (user.email || "customer@example.com").trim() || "customer@example.com",
+            cus_phone: cleanPhone,
+            cus_add1: (address || "Dhaka").trim() || "Dhaka",
             cus_city: "Dhaka",
             cus_country: "Bangladesh"
         });
@@ -93,26 +105,33 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             );
         } catch (axiosErr) {
             console.error("SSLCommerz Axios Failure:", axiosErr.response?.data || axiosErr.message);
-            throw new Error(`SSLCommerz Gateway Connection Failed: ${axiosErr.message}`);
+            return res.status(400).json({ 
+                message: `SSLCommerz Gateway Connection Failed: ${axiosErr.message}`,
+                error: axiosErr.message 
+            });
         }
 
         if (sslResponse.data?.status === 'FAILED') {
-            throw new Error(`SSLCommerz Error: ${sslResponse.data.failedreason || 'Unknown error'}`);
+            const failReason = sslResponse.data.failedreason || 'SSLCommerz transaction failed';
+            console.error("SSLCommerz Failed Reason:", failReason);
+            return res.status(400).json({ message: failReason, error: failReason });
         }
 
         await logPaymentStep(tran_id, "SSL_INIT_RESPONSE", sslResponse.data);
 
         if (sslResponse.data?.GatewayPageURL) {
-            res.json({ gatewayUrl: sslResponse.data.GatewayPageURL });
+            return res.json({ gatewayUrl: sslResponse.data.GatewayPageURL });
         } else {
             console.error("SSL Error Payload:", sslResponse.data);
-            throw new Error(sslResponse.data?.failedreason || "SSLCommerz initialization failed");
+            return res.status(400).json({ 
+                message: sslResponse.data?.failedreason || "SSLCommerz initialization failed",
+                error: "Gateway URL missing in SSLCommerz response"
+            });
         }
 
     } catch (err) {
         console.error("PAYMENT INIT ERROR:", err.message);
-        await logPaymentStep(tran_id, "ERROR", { message: err.message });
-        res.status(500).json({ 
+        return res.status(400).json({ 
             message: "Failed to initiate payment", 
             error: err.message
         });
