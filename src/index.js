@@ -45,12 +45,12 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Root healthcheck endpoint - returns 200 OK immediately
+// Root healthcheck endpoint
 app.get("/", (req, res) => {
     res.send("Puja Ponno Backend is Running!");
 });
 
-// Ensure DB is initialized before database API route handlers execute
+// Ensure DB is connected before handling API routes
 app.use(async (req, res, next) => {
     try {
         await connectDB();
@@ -73,9 +73,10 @@ app.use("/payment", paymentRoute);
 app.use("/orders", orderRoutes);
 app.use("/admin/analytics", adminAnalyticsRoutes);
 
-if (process.env.NODE_ENV !== "production") {
+// Only listen on port if NOT running on Vercel serverless environment
+if (!process.env.VERCEL) {
     app.listen(port, () => {
-        console.log(`✅ Server running on port ${port}`);
+        console.log(`✅ Local server running on port ${port}`);
     });
 }
 
