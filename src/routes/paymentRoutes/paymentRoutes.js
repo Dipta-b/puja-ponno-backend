@@ -121,7 +121,7 @@ router.post("/success", async (req, res) => {
 
         // 🛡️ IDEMPOTENCY: Check if already paid
         if (order.payment.status === "paid") {
-            return res.redirect(`${process.env.BASE_URL_FRONTEND || 'http://localhost:5173'}/?payment=success`);
+            return res.redirect(`${process.env.BASE_URL_FRONTEND || 'https://puja-ponno-frontend.vercel.app'}/?payment=success`);
         }
 
         // 🛡️ VALIDATION: Double check with SSL API
@@ -155,14 +155,14 @@ router.post("/success", async (req, res) => {
                 console.error("Success email fail:", e.message);
             }
 
-            return res.redirect(`${process.env.BASE_URL_FRONTEND || 'http://localhost:5173'}/?payment=success`);
+            return res.redirect(`${process.env.BASE_URL_FRONTEND || 'https://puja-ponno-frontend.vercel.app'}/?payment=success`);
         } else {
             throw new Error("Validation mismatch or invalid status");
         }
 
     } catch (err) {
         console.error("SUCCESS HANDLER ERROR:", err.message);
-        res.redirect(`${process.env.BASE_URL_FRONTEND || 'http://localhost:5173'}/?payment=failed`);
+        res.redirect(`${process.env.BASE_URL_FRONTEND || 'https://puja-ponno-frontend.vercel.app'}/?payment=failed`);
     }
 });
 
@@ -178,7 +178,7 @@ router.post("/fail", async (req, res) => {
         { $set: { "payment.status": "failed", orderStatus: "failed", updatedAt: new Date() } }
     );
 
-    res.redirect(`${process.env.BASE_URL_FRONTEND || 'http://localhost:5173'}/?payment=failed`);
+    res.redirect(`${process.env.BASE_URL_FRONTEND || 'https://puja-ponno-frontend.vercel.app'}/?payment=failed`);
 });
 
 router.post("/cancel", async (req, res) => {
@@ -190,7 +190,7 @@ router.post("/cancel", async (req, res) => {
         { $set: { "payment.status": "cancelled", orderStatus: "cancelled", updatedAt: new Date() } }
     );
 
-    res.redirect(`${process.env.BASE_URL_FRONTEND || 'http://localhost:5173'}/?payment=cancelled`);
+    res.redirect(`${process.env.BASE_URL_FRONTEND || 'https://puja-ponno-frontend.vercel.app'}/?payment=cancelled`);
 });
 
 // ==========================================
