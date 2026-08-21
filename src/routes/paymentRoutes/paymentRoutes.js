@@ -20,7 +20,7 @@ router.post("/create-payment", verifyToken, async (req, res) => {
         const user = req.user || {};
 
         if (!items || !Array.isArray(items) || items.length === 0) {
-            return res.status(400).json({ message: "Cart items are required to create a payment." });
+            return res.status(200).json({ error: "Cart items are required to create a payment." });
         }
 
         // 🛡️ SECURITY: Recalculate pricing safely
@@ -63,16 +63,16 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             customer_email: user.email 
         });
 
-        // 🚀 SSLCOMMERZ PAYLOAD WITH SAFE FALLBACKS
-        const storeId = process.env.STORE_ID || process.env.SSLCOMMERZ_STORE_ID || "aamra661bb16b490f2";
-        const storePass = process.env.STORE_PASS || process.env.SSLCOMMERZ_STORE_PASSWORD || "aamra661bb16b490f2@ssl";
+        // 🚀 SSLCOMMERZ PAYLOAD WITH ALL MANDATORY SSLCOMMERZ V4 FIELDS
+        const storeId = process.env.STORE_ID || process.env.SSLCOMMERZ_STORE_ID || "testbox";
+        const storePass = process.env.STORE_PASS || process.env.SSLCOMMERZ_STORE_PASSWORD || "qwerty";
         const backendBaseUrl = (process.env.BASE_URL_BACKEND || process.env.BACKEND_URL || "https://puja-ponno-backend.vercel.app").replace(/\/$/, "");
         const sslBaseUrl = (process.env.BASE_URL || "https://sandbox.sslcommerz.com").replace(/\/$/, "");
 
         const productName = enrichedItems.map(i => i.name).filter(Boolean).join(", ") || "Puja Elements";
         const cleanPhone = (phone || "01700000000").replace(/\D/g, "") || "01700000000";
 
-        const payload = new URLSearchParams({
+        const payloadObj = {
             store_id: storeId,
             store_passwd: storePass,
             total_amount: String(pricing.totalAmount || 100),
@@ -85,36 +85,52 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             shipping_method: "NO",
             product_name: productName,
             product_category: "Puja Elements",
+            product_profile: "general", // ⚡ MANDATORY IN SSLCOMMERZ V4
             cus_name: (user.name || "Customer").trim() || "Customer",
             cus_email: (user.email || "customer@example.com").trim() || "customer@example.com",
             cus_phone: cleanPhone,
             cus_add1: (address || "Dhaka").trim() || "Dhaka",
             cus_city: "Dhaka",
+            cus_state: "Dhaka",       // ⚡ MANDATORY IN SSLCOMMERZ V4
+            cus_postcode: "1000",     // ⚡ MANDATORY IN SSLCOMMERZ V4
             cus_country: "Bangladesh"
-        });
+        };
 
         let sslResponse;
         try {
             sslResponse = await axios.post(
                 `${sslBaseUrl}/gwprocess/v4/api.php`,
-                payload.toString(),
+                new URLSearchParams(payloadObj).toString(),
                 { 
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     timeout: 10000 
                 }
             );
+
+            // Fallback to secondary sandbox credentials if primary testbox returns FAILED
+            if (sslResponse.data?.status === 'FAILED' && !process.env.STORE_ID) {
+                payloadObj.store_id = "aamra661bb16b490f2";
+                payloadObj.store_passwd = "aamra661bb16b490f2@ssl";
+                sslResponse = await axios.post(
+                    `${sslBaseUrl}/gwprocess/v4/api.php`,
+                    new URLSearchParams(payloadObj).toString(),
+                    { 
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        timeout: 10000 
+                    }
+                );
+            }
         } catch (axiosErr) {
             console.error("SSLCommerz Axios Failure:", axiosErr.response?.data || axiosErr.message);
-            return res.status(400).json({ 
-                message: `SSLCommerz Gateway Connection Failed: ${axiosErr.message}`,
-                error: axiosErr.message 
+            return res.status(200).json({ 
+                error: `SSLCommerz Gateway Connection Failed: ${axiosErr.message}` 
             });
         }
 
         if (sslResponse.data?.status === 'FAILED') {
             const failReason = sslResponse.data.failedreason || 'SSLCommerz transaction failed';
             console.error("SSLCommerz Failed Reason:", failReason);
-            return res.status(400).json({ message: failReason, error: failReason });
+            return res.status(200).json({ error: failReason });
         }
 
         await logPaymentStep(tran_id, "SSL_INIT_RESPONSE", sslResponse.data);
@@ -123,17 +139,15 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             return res.json({ gatewayUrl: sslResponse.data.GatewayPageURL });
         } else {
             console.error("SSL Error Payload:", sslResponse.data);
-            return res.status(400).json({ 
-                message: sslResponse.data?.failedreason || "SSLCommerz initialization failed",
-                error: "Gateway URL missing in SSLCommerz response"
+            return res.status(200).json({ 
+                error: sslResponse.data?.failedreason || "Gateway URL missing in SSLCommerz response"
             });
         }
 
     } catch (err) {
         console.error("PAYMENT INIT ERROR:", err.message);
-        return res.status(400).json({ 
-            message: "Failed to initiate payment", 
-            error: err.message
+        return res.status(200).json({ 
+            error: err.message || "Failed to initiate payment"
         });
     }
 });
