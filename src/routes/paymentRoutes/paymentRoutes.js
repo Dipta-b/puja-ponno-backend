@@ -8,20 +8,61 @@ const { logPaymentStep } = require("../../utils/paymentLogger");
 const validatePayment = require("../../utils/validatePayment");
 const { sendSuccessEmail, sendFailEmail } = require("../../utils/emailService");
 const generateTranId = require("../../utils/generateTranId");
-const verifyToken = require("../../middleware/verifyToken");
+const jwt = require("jsonwebtoken");
+
+const optionalToken = (req, res, next) => {
+    const token = req.cookies?.token || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            req.user = {
+                id: decoded.id,
+                name: decoded.name,
+                email: decoded.email,
+                role: decoded.role,
+            };
+        } catch (err) {
+            req.user = null;
+        }
+    } else {
+        req.user = null;
+    }
+    next();
+};
+
+// Helper: Trigger order success email once atomically
+const triggerOrderSuccessEmail = async (order) => {
+    try {
+        if (!order || !order._id) return;
+        const orders = await getCollection("orders");
+        const freshOrder = await orders.findOne({ _id: order._id });
+        if (freshOrder && !freshOrder.isEmailSent) {
+            await orders.updateOne(
+                { _id: freshOrder._id },
+                { $set: { isEmailSent: true } }
+            );
+            await sendSuccessEmail(freshOrder);
+        }
+    } catch (e) {
+        console.error("Success email trigger exception:", e.message);
+    }
+};
 
 // ==========================================
 // 💳 1. INITIATE PAYMENT (CREATE ORDER)
 // ==========================================
-router.post("/create-payment", verifyToken, async (req, res) => {
+router.post("/create-payment", optionalToken, async (req, res) => {
     const tran_id = generateTranId();
     try {
-        const { items, phone, address, deliveryArea } = req.body || {};
+        const { items, name, email, phone, address, deliveryArea } = req.body || {};
         const user = req.user || {};
 
         if (!items || !Array.isArray(items) || items.length === 0) {
             return res.status(200).json({ error: "Cart items are required to create a payment." });
         }
+
+        const customerName = (name || user.name || "Customer").trim();
+        const customerEmail = (email || user.email || process.env.EMAIL_USER || "diptabanik0@gmail.com").trim();
 
         // 🛡️ SECURITY: Recalculate pricing safely
         const { items: enrichedItems, pricing } = await calculatePricing(items, deliveryArea);
@@ -31,8 +72,8 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             userId: user.id || user._id || "guest",
             tran_id: tran_id,
             customer: {
-                name: user.name || "Customer",
-                email: user.email || "customer@example.com",
+                name: customerName,
+                email: customerEmail,
                 phone: phone || "N/A",
                 address: address || "N/A"
             },
@@ -46,6 +87,7 @@ router.post("/create-payment", verifyToken, async (req, res) => {
                 paidAmount: 0
             },
             orderStatus: "initiated",
+            isEmailSent: false,
             createdAt: new Date(),
             updatedAt: new Date()
         };
@@ -59,8 +101,8 @@ router.post("/create-payment", verifyToken, async (req, res) => {
 
         await logPaymentStep(tran_id, "ORDER_CREATED", { 
             pricing,
-            customer_name: user.name,
-            customer_email: user.email 
+            customer_name: customerName,
+            customer_email: customerEmail 
         });
 
         // 🚀 SSLCOMMERZ PAYLOAD WITH ALL MANDATORY SSLCOMMERZ V4 FIELDS
@@ -86,8 +128,8 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             product_name: productName,
             product_category: "Puja Elements",
             product_profile: "general", // ⚡ MANDATORY IN SSLCOMMERZ V4
-            cus_name: (user.name || "Customer").trim() || "Customer",
-            cus_email: (user.email || "customer@example.com").trim() || "customer@example.com",
+            cus_name: customerName,
+            cus_email: customerEmail,
             cus_phone: cleanPhone,
             cus_add1: (address || "Dhaka").trim() || "Dhaka",
             cus_city: "Dhaka",
@@ -182,6 +224,7 @@ router.all("/success", async (req, res) => {
 
         // 🛡️ IDEMPOTENCY: Check if already paid
         if (order.payment.status === "paid") {
+            await triggerOrderSuccessEmail(order);
             return res.redirect(`${frontendUrl}/?payment=success`);
         }
 
@@ -215,18 +258,8 @@ router.all("/success", async (req, res) => {
                 }
             );
 
-            // 📧 Send Email
-            try {
-                await sendSuccessEmail({
-                    ...order.customer,
-                    tran_id: order.payment?.transactionId || tran_id,
-                    amount: order.pricing?.totalAmount || 0,
-                    items: order.items,
-                    createdAt: order.createdAt
-                });
-            } catch (e) {
-                console.error("Success email fail:", e.message);
-            }
+            // 📧 Trigger email reliably
+            await triggerOrderSuccessEmail(order);
 
             return res.redirect(`${frontendUrl}/?payment=success`);
         } else {
@@ -236,6 +269,30 @@ router.all("/success", async (req, res) => {
     } catch (err) {
         console.error("SUCCESS HANDLER ERROR:", err.message);
         return res.redirect(`${frontendUrl}/?payment=failed`);
+    }
+});
+
+// 🧪 DIAGNOSTIC TEST EMAIL ENDPOINT
+router.get("/test-email", async (req, res) => {
+    const to = req.query.to || process.env.EMAIL_USER;
+    if (!to) {
+        return res.status(400).json({ error: "Please provide ?to=your-email@gmail.com in URL query parameter" });
+    }
+
+    try {
+        await sendSuccessEmail({
+            email: to,
+            name: "Test User",
+            tran_id: "TXN_TEST_" + Date.now(),
+            amount: 500,
+            items: [{ name: "Puja Thali", quantity: 1, price: 500 }],
+            address: "Dhaka, Bangladesh",
+            phone: "01700000000",
+            createdAt: new Date()
+        });
+        res.json({ message: `Test email sent to ${to}. Please check your Gmail Inbox and Spam folder!` });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -249,10 +306,15 @@ router.all("/fail", async (req, res) => {
 
     if (tran_id) {
         await logPaymentStep(tran_id, "FAIL_CALLBACK_RECEIVED", params);
-        await getCollection("orders").updateOne(
+        const orders = await getCollection("orders");
+        const order = await orders.findOne({ "payment.transactionId": tran_id });
+        await orders.updateOne(
             { "payment.transactionId": tran_id },
             { $set: { "payment.status": "failed", orderStatus: "failed", updatedAt: new Date() } }
         );
+        if (order) {
+            sendFailEmail(order).catch(err => console.error("Fail email error:", err.message));
+        }
     }
 
     res.redirect(`${frontendUrl}/?payment=failed`);
@@ -265,10 +327,15 @@ router.all("/cancel", async (req, res) => {
 
     if (tran_id) {
         await logPaymentStep(tran_id, "CANCEL_CALLBACK_RECEIVED", params);
-        await getCollection("orders").updateOne(
+        const orders = await getCollection("orders");
+        const order = await orders.findOne({ "payment.transactionId": tran_id });
+        await orders.updateOne(
             { "payment.transactionId": tran_id },
             { $set: { "payment.status": "cancelled", orderStatus: "cancelled", updatedAt: new Date() } }
         );
+        if (order) {
+            sendFailEmail(order).catch(err => console.error("Cancel email error:", err.message));
+        }
     }
 
     res.redirect(`${frontendUrl}/?payment=cancelled`);
@@ -304,6 +371,7 @@ router.post("/ipn", async (req, res) => {
                     }
                 );
                 console.log(`✅ IPN: Order ${tran_id} marked as PAID`);
+                await triggerOrderSuccessEmail(order);
             }
         }
         res.send("IPN Processed");

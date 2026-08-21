@@ -132,17 +132,28 @@ userRoutes.post("/login", async (req, res) => {
 // =======================
 // CURRENT USER
 // =======================
-userRoutes.get("/me", verifyToken, async (req, res) => {
+userRoutes.get("/me", async (req, res) => {
     try {
-        const users = await getCollection("users");
+        const token = req.cookies?.token || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
+        if (!token) {
+            return res.json(null);
+        }
 
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (e) {
+            return res.json(null);
+        }
+
+        const users = await getCollection("users");
         const user = await users.findOne(
-            { _id: new ObjectId(req.user.id) },
+            { _id: new ObjectId(decoded.id) },
             { projection: { password: 0 } }
         );
 
         if (!user) {
-            return res.status(404).json({ message: "User not found" });
+            return res.json(null);
         }
 
         res.json(user);
