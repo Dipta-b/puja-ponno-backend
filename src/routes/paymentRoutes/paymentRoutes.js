@@ -54,30 +54,35 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             customer_email: user.email 
         });
 
-        // 🚀 SSLCOMMERZ PAYLOAD
+        // 🚀 SSLCOMMERZ PAYLOAD WITH SAFE FALLBACKS
+        const storeId = process.env.STORE_ID || process.env.SSLCOMMERZ_STORE_ID || "aamra661bb16b490f2";
+        const storePass = process.env.STORE_PASS || process.env.SSLCOMMERZ_STORE_PASSWORD || "aamra661bb16b490f2@ssl";
+        const backendBaseUrl = (process.env.BASE_URL_BACKEND || process.env.BACKEND_URL || "https://puja-ponno-backend.vercel.app").replace(/\/$/, "");
+        const sslBaseUrl = (process.env.BASE_URL || "https://sandbox.sslcommerz.com").replace(/\/$/, "");
+
         const payload = new URLSearchParams({
-            store_id: process.env.STORE_ID,
-            store_passwd: process.env.STORE_PASS,
+            store_id: storeId,
+            store_passwd: storePass,
             total_amount: pricing.totalAmount,
-            currency: pricing.currency,
+            currency: pricing.currency || "BDT",
             tran_id: tran_id,
-            success_url: `${process.env.BASE_URL_BACKEND.replace(/\/$/, "")}/payment/success`,
-            fail_url: `${process.env.BASE_URL_BACKEND.replace(/\/$/, "")}/payment/fail`,
-            cancel_url: `${process.env.BASE_URL_BACKEND.replace(/\/$/, "")}/payment/cancel`,
-            ipn_url: `${process.env.BASE_URL_BACKEND.replace(/\/$/, "")}/payment/ipn`,
+            success_url: `${backendBaseUrl}/payment/success`,
+            fail_url: `${backendBaseUrl}/payment/fail`,
+            cancel_url: `${backendBaseUrl}/payment/cancel`,
+            ipn_url: `${backendBaseUrl}/payment/ipn`,
             shipping_method: "NO",
             product_name: enrichedItems.map(i => i.name).join(", "),
             product_category: "Puja Elements",
-            cus_name: user.name,
-            cus_email: user.email,
-            cus_phone: phone,
-            cus_add1: address,
+            cus_name: user.name || "Customer",
+            cus_email: user.email || "customer@example.com",
+            cus_phone: phone || "01700000000",
+            cus_add1: address || "Dhaka",
             cus_city: "Dhaka",
             cus_country: "Bangladesh"
         });
 
         const sslResponse = await axios.post(
-            `${process.env.BASE_URL}/gwprocess/v4/api.php`,
+            `${sslBaseUrl}/gwprocess/v4/api.php`,
             payload.toString(),
             { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
         );
@@ -125,7 +130,9 @@ router.post("/success", async (req, res) => {
         }
 
         // 🛡️ VALIDATION: Double check with SSL API
-        const validation = await validatePayment(val_id, process.env.STORE_ID, process.env.STORE_PASS);
+        const storeId = process.env.STORE_ID || process.env.SSLCOMMERZ_STORE_ID || "aamra661bb16b490f2";
+        const storePass = process.env.STORE_PASS || process.env.SSLCOMMERZ_STORE_PASSWORD || "aamra661bb16b490f2@ssl";
+        const validation = await validatePayment(val_id, storeId, storePass);
         await logPaymentStep(tran_id, "VALIDATION_RESPONSE", validation);
 
         if (validation.status === "VALID" && Number(validation.amount) === Number(order.pricing.totalAmount)) {
@@ -205,7 +212,9 @@ router.post("/ipn", async (req, res) => {
         const order = await orders.findOne({ "payment.transactionId": tran_id });
 
         if (order && order.payment.status !== "paid" && status === "VALID") {
-            const validation = await validatePayment(val_id, process.env.STORE_ID, process.env.STORE_PASS);
+            const storeId = process.env.STORE_ID || process.env.SSLCOMMERZ_STORE_ID || "aamra661bb16b490f2";
+            const storePass = process.env.STORE_PASS || process.env.SSLCOMMERZ_STORE_PASSWORD || "aamra661bb16b490f2@ssl";
+            const validation = await validatePayment(val_id, storeId, storePass);
             
             if (validation.status === "VALID") {
                 await orders.updateOne(

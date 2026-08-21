@@ -1,4 +1,4 @@
-const SSL_BASE_URL = process.env.BASE_URL;
+const SSL_BASE_URL = (process.env.BASE_URL || "https://sandbox.sslcommerz.com").replace(/\/$/, "");
 
 // CHANGE HERE WHEN LIVE:
 // sandbox → https://sandbox.sslcommerz.com
