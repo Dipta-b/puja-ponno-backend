@@ -81,11 +81,20 @@ router.post("/create-payment", verifyToken, async (req, res) => {
             cus_country: "Bangladesh"
         });
 
-        const sslResponse = await axios.post(
-            `${sslBaseUrl}/gwprocess/v4/api.php`,
-            payload.toString(),
-            { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-        );
+        let sslResponse;
+        try {
+            sslResponse = await axios.post(
+                `${sslBaseUrl}/gwprocess/v4/api.php`,
+                payload.toString(),
+                { 
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    timeout: 10000 
+                }
+            );
+        } catch (axiosErr) {
+            console.error("SSLCommerz Axios Failure:", axiosErr.response?.data || axiosErr.message);
+            throw new Error(`SSLCommerz Gateway Connection Failed: ${axiosErr.message}`);
+        }
 
         if (sslResponse.data?.status === 'FAILED') {
             throw new Error(`SSLCommerz Error: ${sslResponse.data.failedreason || 'Unknown error'}`);
@@ -105,8 +114,7 @@ router.post("/create-payment", verifyToken, async (req, res) => {
         await logPaymentStep(tran_id, "ERROR", { message: err.message });
         res.status(500).json({ 
             message: "Failed to initiate payment", 
-            error: err.message,
-            stack: process.env.NODE_ENV === 'production' ? null : err.stack 
+            error: err.message
         });
     }
 });

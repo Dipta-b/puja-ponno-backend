@@ -18,33 +18,30 @@ const calculatePricing = async (items, deliveryArea) => {
 
     for (const item of items) {
         const id = item.id || item._id;
-        
-        // 🛡️ Safety check: Is it a valid MongoDB ID?
-        if (!id || !ObjectId.isValid(id)) {
-            console.warn(`Skipping invalid item ID: ${id}`);
-            continue;
-        }
-        
-        const product = await productsCollection.findOne({ _id: new ObjectId(id) });
+        let product = null;
 
-        if (!product) {
-            throw new Error(`Product not found: ${id}`);
+        if (id && ObjectId.isValid(id)) {
+            try {
+                product = await productsCollection.findOne({ _id: new ObjectId(id) });
+            } catch (e) {
+                console.warn(`Product DB lookup warning for ${id}:`, e.message);
+            }
         }
 
-        // Use discount price if available, else regular price
-        const price = Number(product.discountPrice || product.price);
+        // Use discount price if available, else regular price, else item price from cart
+        const price = Number(product?.discountPrice || product?.price || item.discountPrice || item.price || 0);
         const quantity = Math.max(1, Number(item.quantity) || 1);
         const itemTotal = price * quantity;
 
         subtotal += itemTotal;
 
         enrichedItems.push({
-            productId: product._id.toString(),
-            name: product.name,
+            productId: product ? product._id.toString() : String(id || "item"),
+            name: product?.name || item.name || "Puja Item",
             price: price,
             quantity: quantity,
             subtotal: itemTotal,
-            thumbnail: product.thumbnail || ""
+            thumbnail: product?.thumbnail || item.thumbnail || item.image || ""
         });
     }
 
