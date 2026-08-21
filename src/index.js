@@ -15,6 +15,7 @@ const orderRoutes = require("./routes/orderRoutes");
 const adminAnalyticsRoutes = require("./routes/adminRoutes");
 
 const app = express();
+app.set("trust proxy", 1);
 const port = process.env.PORT || 3000;
 
 const allowedOrigins = [
@@ -35,9 +36,9 @@ app.use(
                 allowedOrigins.includes(origin) ||
                 origin.endsWith(".vercel.app")
             ) {
-                return callback(null, true);
+                return callback(null, origin);
             }
-            return callback(null, true);
+            return callback(null, origin);
         },
         credentials: true,
     })
