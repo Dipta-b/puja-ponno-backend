@@ -45,14 +45,22 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Ensure DB is initialized before route handlers execute
+// Root healthcheck endpoint - returns 200 OK immediately
+app.get("/", (req, res) => {
+    res.send("Puja Ponno Backend is Running!");
+});
+
+// Ensure DB is initialized before database API route handlers execute
 app.use(async (req, res, next) => {
     try {
         await connectDB();
         next();
     } catch (err) {
-        console.error("❌ MongoDB connection error:", err);
-        res.status(500).json({ message: "Database connection failed", error: err.message });
+        console.error("❌ MongoDB connection error:", err.message);
+        res.status(500).json({ 
+            message: "Database connection failed. Please check DB_URI in Vercel Environment Variables.", 
+            error: err.message 
+        });
     }
 });
 
@@ -64,10 +72,6 @@ app.use("/cart", cartRoutes);
 app.use("/payment", paymentRoute);
 app.use("/orders", orderRoutes);
 app.use("/admin/analytics", adminAnalyticsRoutes);
-
-app.get("/", (req, res) => {
-    res.send("Puja Ponno Backend is Running!");
-});
 
 if (process.env.NODE_ENV !== "production") {
     app.listen(port, () => {

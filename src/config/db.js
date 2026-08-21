@@ -4,10 +4,10 @@ let client;
 let db;
 
 async function connectDB() {
-    const uri = process.env.DB_URI; // 👈 move here (SAFE)
+    const uri = process.env.DB_URI || process.env.MONGODB_URI; // 👈 move here (SAFE)
 
     if (!uri) {
-        throw new Error("DB_URI is not defined in .env");
+        throw new Error("DB_URI or MONGODB_URI is not defined in .env");
     }
 
     if (!db) {
