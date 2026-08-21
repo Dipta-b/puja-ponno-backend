@@ -103,12 +103,12 @@ userRoutes.post("/login", async (req, res) => {
             { expiresIn: "7d" }
         );
 
-        const isProduction = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+        const isLocalhost = req.hostname === "localhost" || req.hostname === "127.0.0.1";
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
+            secure: !isLocalhost,
+            sameSite: isLocalhost ? "lax" : "none",
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
@@ -158,12 +158,12 @@ userRoutes.get("/me", verifyToken, async (req, res) => {
 // LOGOUT
 // =======================
 userRoutes.post("/logout", (req, res) => {
-    const isProduction = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+    const isLocalhost = req.hostname === "localhost" || req.hostname === "127.0.0.1";
 
     res.clearCookie("token", {
         httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? "none" : "lax",
+        secure: !isLocalhost,
+        sameSite: isLocalhost ? "lax" : "none",
         path: "/",
     });
 
