@@ -1,3 +1,5 @@
 const app = require("../src/index.js");
 
-module.exports = app;
+module.exports = (req, res) => {
+    return app(req, res);
+};

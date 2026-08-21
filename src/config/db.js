@@ -4,10 +4,10 @@ let client;
 let db;
 
 async function connectDB() {
-    const uri = process.env.DB_URI || process.env.MONGODB_URI; // 👈 move here (SAFE)
+    const uri = process.env.DB_URI || process.env.MONGODB_URI;
 
     if (!uri) {
-        throw new Error("DB_URI or MONGODB_URI is not defined in .env");
+        throw new Error("DB_URI or MONGODB_URI is not defined in environment variables");
     }
 
     if (!db) {
@@ -20,16 +20,17 @@ async function connectDB() {
         });
 
         await client.connect();
-
         db = client.db("pujaPonnoDB");
         console.log("✅ Connected to pujaPonnoDB");
 
-        // ⚡ ENSURE INDEXES (FOR PRODUCTION)
-        const orders = db.collection("orders");
-        await orders.createIndex({ tran_id: 1 }, { unique: true });
-        await orders.createIndex({ userId: 1 });
-        await orders.createIndex({ "paymentStatus": 1 });
-        console.log("⚡ Database Indexes Ensured");
+        try {
+            const orders = db.collection("orders");
+            await orders.createIndex({ tran_id: 1 }, { unique: true });
+            await orders.createIndex({ userId: 1 });
+            await orders.createIndex({ "paymentStatus": 1 });
+        } catch (e) {
+            console.warn("Index warning:", e.message);
+        }
     }
 
     return db;
