@@ -1,9 +1,10 @@
+require("dotenv").config();
 const nodemailer = require("nodemailer");
 
 // Dynamic Transporter helper for Gmail
 const getTransporter = () => {
-    const user = (process.env.EMAIL_USER || process.env.GMAIL_USER || "").trim();
-    const pass = (process.env.EMAIL_PASS || process.env.GMAIL_PASS || "").replace(/\s+/g, "");
+    const user = (process.env.EMAIL_USER || process.env.GMAIL_USER || "diptabanik0@gmail.com").trim();
+    const pass = (process.env.EMAIL_PASS || process.env.GMAIL_PASS || "opwe yssa ojke kfky").replace(/\s+/g, "");
 
     if (!user || !pass) {
         console.warn("⚠️ EMAIL_USER or EMAIL_PASS not set in environment variables. Email notification skipped.");
@@ -21,9 +22,9 @@ const getTransporter = () => {
         tls: {
             rejectUnauthorized: false
         },
-        connectionTimeout: 7000,
-        greetingTimeout: 7000,
-        socketTimeout: 8000
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 12000
     });
 };
 
@@ -182,13 +183,13 @@ const sendFailEmail = async (order) => {
 const sendPasswordResetOTP = async (email, otp) => {
     try {
         const transporter = getTransporter();
-        const emailUser = process.env.EMAIL_USER || process.env.GMAIL_USER;
+        const emailUser = (process.env.EMAIL_USER || process.env.GMAIL_USER || "diptabanik0@gmail.com").trim();
 
         if (!transporter) {
             console.warn("⚠️ Nodemailer skipped: Transporter not configured (EMAIL_USER/EMAIL_PASS missing).");
             return false;
         }
-        // 7-second timeout safeguard to prevent hanging serverless function
+        // 10-second timeout safeguard to prevent hanging serverless function
         const sendPromise = transporter.sendMail({
             from: `"Nitya Puja" <${emailUser}>`,
             to: email,
@@ -268,7 +269,7 @@ const sendPasswordResetOTP = async (email, otp) => {
         });
 
         const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("SMTP timeout after 7 seconds")), 7000)
+            setTimeout(() => reject(new Error("SMTP timeout after 10 seconds")), 10000)
         );
 
         await Promise.race([sendPromise, timeoutPromise]);
