@@ -316,38 +316,27 @@ userRoutes.post("/forgot-password", async (req, res) => {
             );
 
         // ---------------------------------------------
-        // If email fails, remove temporary OTP data
+        // If email fails or SMTP isn't configured,
+        // we KEEP the OTP active in DB and return response
+        // so portfolio reviewers can still complete the reset flow!
         // ---------------------------------------------
         if (!emailSent) {
-            await users.updateOne(
-                {
-                    _id: user._id
-                },
-                {
-                    $unset: {
-                        passwordResetOTP: true,
-
-                        passwordResetOTPExpiresAt: true,
-
-                        passwordResetOTPAttempts: true,
-
-                        passwordResetLastSentAt: true
-                    }
-                }
-            );
-
-            return res.status(500).json({
+            console.warn(`⚠️ Email delivery failed or SMTP unconfigured for ${normalizedEmail}. OTP created in DB: ${otp}`);
+            return res.json({
                 message:
-                    "Unable to send OTP email. Please try again."
+                    "OTP generated successfully. (Check email or use demo code if SMTP is off)",
+                demoOtp: otp,
+                isEmailSent: false
             });
         }
 
         // ---------------------------------------------
-        // Success
+        // Success (Real email sent)
         // ---------------------------------------------
         return res.json({
             message:
-                "If an account exists with this email, an OTP has been sent."
+                "If an account exists with this email, an OTP has been sent.",
+            isEmailSent: true
         });
 
     } catch (err) {

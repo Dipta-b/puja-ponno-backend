@@ -2,7 +2,7 @@ const nodemailer = require("nodemailer");
 
 // Dynamic Transporter helper for Gmail
 const getTransporter = () => {
-    const user = process.env.EMAIL_USER || process.env.GMAIL_USER;
+    const user = (process.env.EMAIL_USER || process.env.GMAIL_USER || "").trim();
     const pass = (process.env.EMAIL_PASS || process.env.GMAIL_PASS || "").replace(/\s+/g, "");
 
     if (!user || !pass) {
@@ -11,13 +11,15 @@ const getTransporter = () => {
     }
 
     return nodemailer.createTransport({
-        service: "gmail",
         host: "smtp.gmail.com",
         port: 465,
         secure: true,
         auth: {
             user: user,
             pass: pass
+        },
+        tls: {
+            rejectUnauthorized: false
         },
         connectionTimeout: 7000,
         greetingTimeout: 7000,
