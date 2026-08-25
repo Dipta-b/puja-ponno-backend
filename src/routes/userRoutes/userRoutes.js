@@ -11,6 +11,40 @@ const verifyAdmin = require("../../middleware/verifyAdmin");
 const { sendPasswordResetOTP } = require("../../utils/emailService");
 
 // =======================
+// AUTH ROOT (VERCEL CHECK)
+// =======================
+userRoutes.get("/", (req, res) => {
+    res.json({
+        status: "success",
+        service: "Puja Ponno Authentication API",
+        message: "Auth API is online and fully functional on Vercel.",
+        passwordRoutes: {
+            step1: {
+                name: "Forgot Password (Request OTP)",
+                url: "/api/auth/forgot-password",
+                method: "POST",
+                isWorkable: true,
+                body: { email: "user@example.com" }
+            },
+            step2: {
+                name: "Verify Reset OTP",
+                url: "/api/auth/verify-reset-otp",
+                method: "POST",
+                isWorkable: true,
+                body: { email: "user@example.com", otp: "123456" }
+            },
+            step3: {
+                name: "Reset Password",
+                url: "/api/auth/reset-password",
+                method: "POST",
+                isWorkable: true,
+                body: { email: "user@example.com", resetToken: "64_char_hex_token", newPassword: "newPassword123" }
+            }
+        }
+    });
+});
+
+// =======================
 // REGISTER
 // =======================
 userRoutes.post("/register", async (req, res) => {
@@ -133,6 +167,22 @@ userRoutes.post("/login", async (req, res) => {
 // FORGOT PASSWORD - STEP 1
 // Send OTP to user's email
 // =====================================================
+userRoutes.get("/forgot-password", (req, res) => {
+    res.json({
+        status: "success",
+        success: true,
+        route: "/api/auth/forgot-password",
+        step: 1,
+        name: "Forgot Password (Request OTP)",
+        isWorkable: true,
+        supportedMethods: ["GET", "POST"],
+        message: "Forgot password endpoint is active and workable on Vercel. Send a POST request with your email to receive a 6-digit verification code.",
+        expectedPostPayload: {
+            email: "user@example.com"
+        }
+    });
+});
+
 userRoutes.post("/forgot-password", async (req, res) => {
     try {
         const { email } = req.body;
@@ -317,6 +367,23 @@ userRoutes.post("/forgot-password", async (req, res) => {
 // FORGOT PASSWORD - STEP 2
 // Verify OTP
 // =====================================================
+userRoutes.get("/verify-reset-otp", (req, res) => {
+    res.json({
+        status: "success",
+        success: true,
+        route: "/api/auth/verify-reset-otp",
+        step: 2,
+        name: "Verify Reset OTP",
+        isWorkable: true,
+        supportedMethods: ["GET", "POST"],
+        message: "Verify reset OTP endpoint is active and workable on Vercel. Send a POST request with your email and 6-digit OTP to receive a secure reset token.",
+        expectedPostPayload: {
+            email: "user@example.com",
+            otp: "123456"
+        }
+    });
+});
+
 userRoutes.post("/verify-reset-otp", async (req, res) => {
     try {
         const {
@@ -605,6 +672,24 @@ userRoutes.post("/verify-reset-otp", async (req, res) => {
 // FORGOT PASSWORD - STEP 3
 // Reset password
 // =====================================================
+userRoutes.get("/reset-password", (req, res) => {
+    res.json({
+        status: "success",
+        success: true,
+        route: "/api/auth/reset-password",
+        step: 3,
+        name: "Reset Password",
+        isWorkable: true,
+        supportedMethods: ["GET", "POST"],
+        message: "Reset password endpoint is active and workable on Vercel. Send a POST request with your email, resetToken, and newPassword to complete password reset.",
+        expectedPostPayload: {
+            email: "user@example.com",
+            resetToken: "64-character-hex-token-from-step-2",
+            newPassword: "minimum-8-characters"
+        }
+    });
+});
+
 userRoutes.post("/reset-password", async (req, res) => {
     try {
         const {

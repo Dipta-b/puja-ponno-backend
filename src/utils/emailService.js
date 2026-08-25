@@ -12,10 +12,16 @@ const getTransporter = () => {
 
     return nodemailer.createTransport({
         service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
         auth: {
             user: user,
             pass: pass
-        }
+        },
+        connectionTimeout: 7000,
+        greetingTimeout: 7000,
+        socketTimeout: 8000
     });
 };
 
@@ -178,9 +184,10 @@ const sendPasswordResetOTP = async (email, otp) => {
 
         if (!transporter) {
             console.warn("⚠️ Nodemailer skipped: Transporter not configured (EMAIL_USER/EMAIL_PASS missing).");
-            return;
+            return false;
         }
-        await transporter.sendMail({
+        // 7-second timeout safeguard to prevent hanging serverless function
+        const sendPromise = transporter.sendMail({
             from: `"Nitya Puja" <${emailUser}>`,
             to: email,
             subject: "Nitya Puja - Password Reset OTP",
@@ -257,6 +264,12 @@ const sendPasswordResetOTP = async (email, otp) => {
                 </div>
             `
         });
+
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("SMTP timeout after 7 seconds")), 7000)
+        );
+
+        await Promise.race([sendPromise, timeoutPromise]);
 
         console.log("✅ Password reset OTP sent to:", email);
 
