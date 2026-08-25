@@ -1,4 +1,16 @@
 const { MongoClient, ServerApiVersion } = require("mongodb");
+const dns = require("dns");
+
+// Fix Windows DNS resolution issue for MongoDB SRV records
+try {
+    dns.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch (e) {
+    // Ignore if not permitted
+}
+
+if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder("ipv4first");
+}
 
 let client;
 let db;

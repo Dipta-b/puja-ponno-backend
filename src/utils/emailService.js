@@ -23,7 +23,7 @@ const sendSuccessEmail = async (order) => {
     try {
         const transporter = getTransporter();
         const emailUser = process.env.EMAIL_USER || process.env.GMAIL_USER;
-        
+
         if (!transporter) {
             console.warn("⚠️ Nodemailer skipped: Transporter not configured (EMAIL_USER/EMAIL_PASS missing).");
             return;
@@ -134,7 +134,7 @@ const sendFailEmail = async (order) => {
         const transporter = getTransporter();
         const emailUser = process.env.EMAIL_USER || process.env.GMAIL_USER;
         let recipientEmail = order?.email || order?.customer?.email || emailUser;
-        
+
         if (!transporter || !recipientEmail) return;
 
         const recipientName = order?.name || order?.customer?.name || "Customer";
@@ -171,4 +171,105 @@ const sendFailEmail = async (order) => {
     }
 };
 
-module.exports = { sendSuccessEmail, sendFailEmail };
+const sendPasswordResetOTP = async (email, otp) => {
+    try {
+        const transporter = getTransporter();
+        const emailUser = process.env.EMAIL_USER || process.env.GMAIL_USER;
+
+        if (!transporter) {
+            console.warn("⚠️ Nodemailer skipped: Transporter not configured (EMAIL_USER/EMAIL_PASS missing).");
+            return;
+        }
+        await transporter.sendMail({
+            from: `"Nitya Puja" <${emailUser}>`,
+            to: email,
+            subject: "Nitya Puja - Password Reset OTP",
+            html: `
+                <div style="
+                    font-family: Arial, sans-serif;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    border: 1px solid #eee;
+                    border-radius: 10px;
+                    overflow: hidden;
+                ">
+                    <div style="
+                        background: linear-gradient(135deg, #d32f2f, #ff9800);
+                        color: white;
+                        padding: 25px;
+                        text-align: center;
+                    ">
+                        <h2 style="margin: 0;">
+                            Password Reset
+                        </h2>
+
+                        <p style="margin: 8px 0 0;">
+                            Nitya Puja
+                        </p>
+                    </div>
+
+                    <div style="padding: 30px;">
+                        <p style="font-size: 16px; color: #333;">
+                            We received a request to reset your password.
+                        </p>
+
+                        <p style="font-size: 15px; color: #555;">
+                            Your verification code is:
+                        </p>
+
+                        <div style="
+                            text-align: center;
+                            margin: 25px 0;
+                        ">
+                            <span style="
+                                display: inline-block;
+                                background: #f5f5f5;
+                                padding: 15px 30px;
+                                border-radius: 8px;
+                                font-size: 32px;
+                                font-weight: bold;
+                                letter-spacing: 8px;
+                                color: #d32f2f;
+                            ">
+                                ${otp}
+                            </span>
+                        </div>
+
+                        <p style="font-size: 14px; color: #666;">
+                            This OTP will expire in 10 minutes.
+                        </p>
+
+                        <p style="font-size: 14px; color: #666;">
+                            If you did not request a password reset,
+                            you can safely ignore this email.
+                        </p>
+
+                        <hr style="border: none; border-top: 1px solid #eee;">
+
+                        <p style="
+                            text-align: center;
+                            color: #999;
+                            font-size: 12px;
+                        ">
+                            © ${new Date().getFullYear()} Nitya Puja
+                        </p>
+                    </div>
+                </div>
+            `
+        });
+
+        console.log("✅ Password reset OTP sent to:", email);
+
+        return true;
+
+    } catch (err) {
+        console.error(
+            "❌ Password reset email error:",
+            err.message
+        );
+
+        return false;
+    }
+};
+
+module.exports = { sendSuccessEmail, sendFailEmail, sendPasswordResetOTP };
